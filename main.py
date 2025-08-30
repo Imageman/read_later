@@ -22,7 +22,7 @@ import argparse
 import hashlib
 import html
 import json
-import logging
+from loguru import logger
 import os
 import re
 import shutil
@@ -51,26 +51,30 @@ from trafilatura.settings import use_config as tf_use_config
 from readability import Document
 
 # -------------------- ЛОГИ --------------------
-def setup_logger(log_file: Path) -> logging.Logger:
-    logger = logging.getLogger("news_grabber")
-    logger.setLevel(logging.DEBUG)
-    logger.handlers.clear()
-
-    fmt = logging.Formatter(
-        "[%(asctime)s] %(levelname)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+def setup_logger(log_file: Path):
+    """Настраивает систему логирования с использованием Loguru."""
+    logger.remove()
+    log_format = (
+        "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
+        "<level>{level: <8}</level> | "
+        "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
     )
 
-    ch = logging.StreamHandler(sys.stdout)
-    ch.setLevel(logging.INFO)
-    ch.setFormatter(fmt)
+    try:
+        # Логирование в консоль
+        logger.add(sys.stdout, colorize=True, format=log_format, level="debug")
+    except Exception as e:
+        # Эта ошибка может возникнуть, если нет доступной консоли (например, при запуске с pythonw.exe)
+        # Логируем это в файл для отладки, но не прерываем работу.
+        logger.debug(f"Could not add console logger: {e}")
 
-    fh = logging.FileHandler(log_file, encoding="utf-8")
-    fh.setLevel(logging.DEBUG)
-    fh.setFormatter(fmt)
+    # Логирование в файлы
+    logger.add(log_file, rotation="10 MB", retention="7 days", encoding="utf-8", level="DEBUG", format=log_format)
+    # logger.add(LOG_ERROR_FILE, rotation="10 MB", retention="7 days", encoding="utf-8", level="ERROR", backtrace=True,
+    #            diagnose=True)
 
-    logger.addHandler(ch)
-    logger.addHandler(fh)
-    return logger
+    logger.info("Logging is configured.")
+
 
 # -------------------- МОДЕЛИ --------------------
 @dataclass
@@ -162,7 +166,7 @@ def extract_with_trafilatura(html_str: str, base_url: str) -> Tuple[str, Dict]:
         output="markdown",
         config=cfg,
     )
-    meta = trafilatura.extract_metadata(html_str, url=base_url)
+    meta = trafilatura.extract_metadata(html_str, default_url=base_url)
     return md or "", meta or {}
 
 def extract_with_readability(html_str: str, base_url: str) -> Tuple[str, str]:
@@ -179,7 +183,7 @@ def extract_with_readability(html_str: str, base_url: str) -> Tuple[str, str]:
     text = soup.get_text("\n", strip=True)
     return title, text
 
-def extract_article(session: requests.Session, url: str, logger: logging.Logger) -> Article:
+def extract_article(session: requests.Session, url: str) -> Article:
     resp = session.get(url, allow_redirects=True, timeout=30)
     resp.raise_for_status()
     html_str = resp.text
@@ -285,7 +289,7 @@ def build_front_matter(a: Article, feed_name: str, tags: List[str]) -> str:
     lines.append("---")
     return "\n".join(lines)
 
-def rewrite_and_download_images(a: Article, out_dir: Path, session: requests.Session, logger: logging.Logger) -> str:
+def rewrite_and_download_images(a: Article, out_dir: Path, session: requests.Session) -> str:
     """Скачивает <img src> и переписывает на локальные пути. Возвращает изменённый Markdown."""
     md = a.content_markdown
     # Наивный разбор Markdown-картинок ![alt](url)
@@ -310,7 +314,7 @@ def rewrite_and_download_images(a: Article, out_dir: Path, session: requests.Ses
             return m.group(0)
     return pattern.sub(repl, md)
 
-def save_markdown(a: Article, feed_name: str, out_root: Path, tags: List[str], download_images: bool, session: requests.Session, logger: logging.Logger) -> Path:
+def save_markdown(a: Article, feed_name: str, out_root: Path, tags: List[str], download_images: bool, session: requests.Session) -> Path:
     # Папка: /YYYY/MM/
     dt = a.published or now_local()
     out_dir = out_root / f"{dt.year:04d}" / f"{dt.month:02d}"
@@ -329,7 +333,7 @@ def save_markdown(a: Article, feed_name: str, out_root: Path, tags: List[str], d
     return path
 
 # -------------------- СБОРОЩИК --------------------
-def fetch_feed_items(session: requests.Session, url: str, feed_name: str, ua: str, logger: logging.Logger) -> List[FeedItem]:
+def fetch_feed_items(session: requests.Session, url: str, feed_name: str, ua: str) -> List[FeedItem]:
     logger.info(f"Fetching feed: {feed_name} | {url}")
     d = feedparser.parse(url)
     items: List[FeedItem] = []
@@ -363,7 +367,7 @@ def fetch_feed_items(session: requests.Session, url: str, feed_name: str, ua: st
         )
     return items
 
-def clean_old_notes(out_root: Path, retention_days: int, logger: logging.Logger) -> None:
+def clean_old_notes(out_root: Path, retention_days: int) -> None:
     if retention_days <= 0:
         return
     cutoff = time.time() - retention_days * 86400
@@ -380,6 +384,8 @@ def clean_old_notes(out_root: Path, retention_days: int, logger: logging.Logger)
 
 # -------------------- MAIN --------------------
 def main() -> int:
+    log_file = "news_grabber.log"
+    setup_logger(log_file)
     ap = argparse.ArgumentParser(description="Local RSS → Markdown pipeline for Obsidian")
     ap.add_argument("--config", default="config.yaml", help="Path to config.yaml")
     ap.add_argument("--once", action="store_true", help="Run once and exit")
@@ -392,8 +398,6 @@ def main() -> int:
     output_dir = Path(cfg["output_dir"]).expanduser()
     ensure_dir(output_dir)
 
-    log_file = output_dir.parent / "news_grabber.log"
-    logger = setup_logger(log_file)
 
     retention_days = int(cfg.get("retention_days", 30))
     min_chars = int(cfg.get("min_chars", 600))
@@ -425,7 +429,7 @@ def main() -> int:
         f_deny = feed.get("deny_domains", [])
         tags = feed.get("tags", []) or []
 
-        items = fetch_feed_items(session, url, name, user_agent, logger)
+        items = fetch_feed_items(session, url, name, user_agent)
         count = 0
 
         for it in items:
@@ -448,9 +452,9 @@ def main() -> int:
                 continue
 
             try:
-                art = extract_article(session, it.link, logger)
+                art = extract_article(session, url= it.link)
             except Exception as e:
-                logger.debug(f"Extract failed: {it.link} -> {e}")
+                logger.warning(f"Extract failed: {it.link} -> {e}")
                 continue
 
             # Повторная фильтрация по полному тексту
@@ -468,7 +472,6 @@ def main() -> int:
                 tags=tags,
                 download_images=download_images,
                 session=session,
-                logger=logger,
             )
             seen.add(uid, it.link)
             count += 1
@@ -479,7 +482,7 @@ def main() -> int:
         if args.max is not None and total_saved >= args.max:
             break
 
-    clean_old_notes(output_dir, retention_days, logger)
+    clean_old_notes(output_dir, retention_days)
     logger.info(f"All done. Total saved: {total_saved}")
     return 0
 
