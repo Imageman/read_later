@@ -246,8 +246,7 @@ def match_keywords(text: str, inc: List[str], exc: List[str]) -> bool:
         ok = any(k.lower() in T for k in inc)
         if not ok:
             return False
-    if exc:
-        if any(k.lower() in T for k in exc):
+    if exc and any(k.lower() in T for k in exc):
             return False
     return True
 
@@ -325,7 +324,7 @@ def save_markdown(a: Article, feed_name: str, out_root: Path, tags: List[str], d
 
     body_md = a.content_markdown
     if download_images:
-        body_md = rewrite_and_download_images(a, out_dir, session, logger)
+        body_md = rewrite_and_download_images(a, out_dir, session)
 
     front = build_front_matter(a, feed_name, tags)
     with open(path, "w", encoding="utf-8") as f:
@@ -333,7 +332,7 @@ def save_markdown(a: Article, feed_name: str, out_root: Path, tags: List[str], d
     return path
 
 # -------------------- СБОРОЩИК --------------------
-def fetch_feed_items(session: requests.Session, url: str, feed_name: str, ua: str) -> List[FeedItem]:
+def fetch_feed_items(session: requests.Session, url: str, feed_name: str) -> List[FeedItem]:
     logger.info(f"Fetching feed: {feed_name} | {url}")
     d = feedparser.parse(url)
     items: List[FeedItem] = []
@@ -429,7 +428,7 @@ def main() -> int:
         f_deny = feed.get("deny_domains", [])
         tags = feed.get("tags", []) or []
 
-        items = fetch_feed_items(session, url, name, user_agent)
+        items = fetch_feed_items(session, url, name)
         count = 0
 
         for it in items:
