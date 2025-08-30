@@ -12,7 +12,8 @@
 7) Опционально скачивает изображения и переписывает ссылки на локальные.
 
 Запуск:
-    python news_grabber.py --config config.yaml
+    python news_grabber.py            # использует config.yaml по умолчанию
+    python news_grabber.py --config custom.yaml
 Добавьте в Планировщик задач Windows для периодического запуска.
 """
 
@@ -380,7 +381,7 @@ def clean_old_notes(out_root: Path, retention_days: int, logger: logging.Logger)
 # -------------------- MAIN --------------------
 def main() -> int:
     ap = argparse.ArgumentParser(description="Local RSS → Markdown pipeline for Obsidian")
-    ap.add_argument("--config", required=True, help="Path to config.yaml")
+    ap.add_argument("--config", default="config.yaml", help="Path to config.yaml")
     ap.add_argument("--once", action="store_true", help="Run once and exit")
     ap.add_argument("--max", type=int, default=None, help="Global max articles per run")
     args = ap.parse_args()
