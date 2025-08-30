@@ -64,18 +64,19 @@ def setup_logger(log_file: Path):
         "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
     )
 
+    # Логирование в файлы
+    logger.add(log_file, rotation="10 MB",  retention=3,  encoding="utf-8", backtrace=True,
+               level='DEBUG', diagnose=True)
+
     try:
         # Логирование в консоль
-        logger.add(sys.stderr, colorize=True, format=log_format, level="debug")
+        logger.add(sys.stdout, colorize=True, format="<green>{time:HH:mm:ss}</green> <level>{message}</level>",
+                   level='DEBUG')
     except Exception as error:
         # Эта ошибка может возникнуть, если нет доступной консоли (например, при запуске с pythonw.exe)
         # Логируем это в файл для отладки, но не прерываем работу.
-        logger.debug(f"Could not add console logger: {error}")
+        logger.info(f"Could not add console logger: {error}")
 
-    # Логирование в файлы
-    logger.add(log_file, rotation="10 MB", retention="7 days", encoding="utf-8", level="DEBUG", format=log_format)
-    # logger.add(LOG_ERROR_FILE, rotation="10 MB", retention="7 days", encoding="utf-8", level="ERROR", backtrace=True,
-    #            diagnose=True)
 
     logger.info("Logging is configured.")
 
@@ -430,7 +431,7 @@ def main() -> int:
         logger.error("No feeds configured.")
         return 2
 
-    seen = SeenDB(output_dir.parent / "seen.db")
+    seen = SeenDB(output_dir / "seen.db")
     session = build_http_session(user_agent)
 
     total_saved = 0
