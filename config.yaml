@@ -1,0 +1,33 @@
+# Путь к вашему Obsidian Vault (куда складывать статьи)
+output_dir: "d:/tmp/news"
+
+# Общие правила
+retention_days: 30               # авто-удаление заметок старше N дней
+min_chars: 600                   # минимальная длина статьи (отбор "шумных" коротышей)
+download_images: false           # true = скачивать изображения локально и переписывать ссылки
+max_articles_per_feed: 15        # ограничение на количество за прогон (страхуемся от флуда)
+user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) NewsGrabber/1.0"
+
+# Глобальные фильтры
+include_keywords: ["нейросети", "machine learning", "python", "deep learning", "наука", "программирование", "ИИ"]
+exclude_keywords: ["вакансия", "джун", "интервью", "маркетинг"]
+allow_domains: ["habr.com", "arxiv.org", "news.ycombinator.com", "towardsdatascience.com"]
+deny_domains: []
+
+# RSS-ленты (можно добавить свои)
+feeds:
+  - name: "Habr / Все публикации"
+    url: "https://habr.com/ru/rss/all/all/?fl=ru"
+    include_keywords: ["нейросети", "машинное обучение", "python", "cuda", "torch"]
+    exclude_keywords: ["зарплата", "подкаст"]
+    allow_domains: ["habr.com"]
+
+  - name: "Hacker News / Front"
+    url: "https://hnrss.org/frontpage"
+    include_keywords: ["AI", "ML", "Python", "Deep Learning"]
+    allow_domains: ["news.ycombinator.com", "arxiv.org", "pytorch.org", "huggingface.co"]
+
+  - name: "arXiv / cs.LG"
+    url: "http://export.arxiv.org/rss/cs.LG"
+    include_keywords: ["LLM", "vision", "audio", "diffusion", "optimization"]
+    allow_domains: ["arxiv.org"]
