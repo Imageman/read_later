@@ -53,6 +53,7 @@ from newspaper import Article as NPArticle
 import html2text
 import pypandoc
 from markitdown import MarkItDown
+from markitdown._exceptions import UnsupportedFormatException
 
 # -------------------- CONSTANTS --------------------
 FEED_DIR_NAME_LIMIT = 20
@@ -168,25 +169,33 @@ def build_http_session(user_agent: str) -> requests.Session:
 def html_to_markdown(html_str: str, base_url: str, cfg: Dict) -> str:
     """Convert HTML to Markdown using selected engine."""
     engine = (cfg.get("engine") or cfg.get("name") or "html2text").lower()
+
+    def _convert_html2text(source: str) -> str:
+        h = html2text.HTML2Text()
+        h.ignore_links = False
+        h.body_width = 0
+        h.baseurl = base_url
+        return h.handle(source)
+
     if engine == "pypandoc":
         extra = cfg.get("pypandoc", {}).get("extra_args", ["--wrap=none"])
         return pypandoc.convert_text(html_str, to="md", format="html", extra_args=extra)
     if engine == "markitdown":
         mk = MarkItDown()
+        original_html = html_str
         if base_url:
             html_str = f'<base href="{base_url}">{html_str}'
-        res = mk.convert(BytesIO(html_str.encode("utf-8")), mimetype="text/html")
+        try:
+            res = mk.convert(BytesIO(html_str.encode("utf-8")), mimetype="text/html")
+        except UnsupportedFormatException:
+            logger.warning("Unsupported format for MarkItDown; falling back to html2text")
+            return _convert_html2text(original_html)
         if hasattr(res, "text_content"):
             return res.text_content
         if hasattr(res, "markdown"):
             return res.markdown
         return str(res)
-    # default html2text
-    h = html2text.HTML2Text()
-    h.ignore_links = False
-    h.body_width = 0
-    h.baseurl = base_url
-    return h.handle(html_str)
+    return _convert_html2text(html_str)
 
 def decode_html_entities(text: str) -> str:
     """
