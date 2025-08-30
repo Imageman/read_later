@@ -29,6 +29,7 @@ import shutil
 import sqlite3
 import sys
 import time
+import traceback
 from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -76,7 +77,7 @@ def setup_logger(log_file: Path):
     except Exception as error:
         # Эта ошибка может возникнуть, если нет доступной консоли (например, при запуске с pythonw.exe)
         # Логируем это в файл для отладки, но не прерываем работу.
-        logger.info(f"Could not add console logger: {error}")
+        logger.info(f"Could not add console logger: {error}\n{traceback.format_exc()}")
 
 
     logger.info("Logging is configured.")
@@ -291,7 +292,7 @@ def rewrite_and_download_images(a: Article, out_dir: Path, session: requests.Ses
             rel = f"./assets/{fname}"
             return f"![{alt}]({rel})"
         except Exception as e:
-            logger.debug(f"Image fetch failed: {url} -> {e}")
+            logger.debug(f"Image fetch failed: {url} -> {e}\n{traceback.format_exc()}")
             return m.group(0)
     return pattern.sub(repl, md)
 
@@ -365,7 +366,7 @@ def clean_old_notes(out_root: Path, retention_days: int) -> None:
                 p.unlink()
                 deleted += 1
         except Exception as e:
-            logger.debug(f"Failed to delete {p}: {e}")
+            logger.debug(f"Failed to delete {p}: {e}\n{traceback.format_exc()}")
     if deleted:
         logger.info(f"Deleted old notes: {deleted}")
 
@@ -443,7 +444,7 @@ def main() -> int:
             try:
                 art = extract_article(session, url=it.link, conv_cfg=converter_cfg)
             except Exception as e:
-                logger.warning(f"Extract failed: {it.link} -> {e}")
+                logger.warning(f"Extract failed: {it.link} -> {e}\n{traceback.format_exc()}")
                 continue
 
             # Повторная фильтрация по полному тексту
