@@ -4,7 +4,8 @@
 """
 Локальный офлайн-пайплайн:
 1) Читает RSS/Atom.
-2) Для каждой записи тянет веб-страницу, извлекает "чистый" текст (trafilatura -> fallback readability).
+2) Для каждой записи тянет веб-страницу, извлекает "чистый" HTML (newspaper4k)
+   и конвертирует в Markdown (html2text / pypandoc / MarkItDown).
 3) Фильтрует по ключевым словам/доменам/минимальной длине.
 4) Сохраняет в Markdown с YAML front matter в output_dir.
 5) Ведёт базу "seen" (SQLite) — без дублей.
@@ -20,7 +21,6 @@
 from __future__ import annotations
 import argparse
 import hashlib
-import html
 import json
 from loguru import logger
 import os
@@ -33,7 +33,7 @@ from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional
 from urllib.parse import urlparse, urljoin
 
 import feedparser
@@ -43,15 +43,13 @@ from bs4 import BeautifulSoup
 from dateutil import tz
 from dateutil.parser import parse as date_parse
 
-# trafilatura
-import trafilatura
-from trafilatura.settings import use_config as tf_use_config
+# newspaper4k
+from newspaper import Article as NPArticle
 
-# readability fallback
-from readability import Document
-
-# HTML → Markdown converter
-from markdownify import markdownify as html_to_md
+# HTML → Markdown converters
+import html2text
+import pypandoc
+from markitdown import MarkItDown
 
 # -------------------- CONSTANTS --------------------
 FEED_DIR_NAME_LIMIT = 20
@@ -164,83 +162,51 @@ def build_http_session(user_agent: str) -> requests.Session:
     s.timeout = 30  # type: ignore[attr-defined]
     return s
 
-def extract_with_trafilatura(html_str: str, base_url: str) -> Tuple[str, Dict]:
-    # Настройка trafilatura для очищенного HTML
-    # Получаем HTML и метаданные
-    html2 = re.sub(r"\s{1,15}", " ", html_str, flags=re.UNICODE)
-    html2 = re.sub(r"&nbsp;", " ", html2, flags=re.IGNORECASE | re.UNICODE)
-    md = trafilatura.extract(
-        html2,
-        url=base_url,
-        target_language="ru",
-        include_comments=False,
-        include_tables=True,
-        # output_format="xml",
-        favor_recall=True,
-        include_formatting=True,
-        include_links=True,
-        include_images=True,
-    )
-    meta = trafilatura.extract_metadata(html_str, default_url=base_url)
-    # md = html_to_md(clean_html, heading_style="ATX") if clean_html else ""
-    return md, meta or {}
+def html_to_markdown(html_str: str, base_url: str, cfg: Dict) -> str:
+    """Convert HTML to Markdown using selected engine."""
+    engine = (cfg.get("engine") or cfg.get("name") or "html2text").lower()
+    if engine == "pypandoc":
+        extra = cfg.get("pypandoc", {}).get("extra_args", ["--wrap=none"])
+        return pypandoc.convert_text(html_str, to="md", format="html", extra_args=extra)
+    if engine == "markitdown":
+        mk = MarkItDown()
+        try:
+            res = mk.convert(html_str, base_url)
+        except TypeError:
+            res = mk.convert(html_str)
+        if hasattr(res, "text_content"):
+            return res.text_content
+        if hasattr(res, "markdown"):
+            return res.markdown
+        return str(res)
+    # default html2text
+    h = html2text.HTML2Text()
+    h.ignore_links = False
+    h.body_width = 0
+    h.baseurl = base_url
+    return h.handle(html_str)
 
-def extract_with_readability(html_str: str, base_url: str) -> Tuple[str, str]:
-    doc = Document(html_str)
-    title = html.unescape(doc.short_title() or "")
-    content_html = doc.summary(html_partial=False)
-    # Простой HTML → Markdown через грубую конверсию (fallback)
-    soup = BeautifulSoup(content_html, "lxml")
-    # сохраняем ссылки как [text](href)
-    for a in soup.find_all("a"):
-        href = a.get("href")
-        if href:
-            a.string = f"[{a.get_text(strip=True)}]({urljoin(base_url, href)})"
-    text = soup.get_text("\n", strip=True)
-    return title, text
 
-def extract_article(session: requests.Session, url: str) -> Article:
+def extract_article(session: requests.Session, url: str, conv_cfg: Dict) -> Article:
     resp = session.get(url, allow_redirects=True, timeout=30)
     resp.raise_for_status()
-    html_str = resp.text
 
-    md, meta = extract_with_trafilatura(html_str, url)
-    content_text = ""
-    title = ""
-    top_image = None
-    published = None
-    authors: List[str] = []
+    art = NPArticle(url)
+    art.set_html(resp.text)
+    art.parse()
 
-    if md:
-        # попытка собрать текст без разметки
-        content_text = BeautifulSoup(md, "lxml").get_text("\n", strip=True)
-        # метаданные
-        title = (meta.title if hasattr(meta, "title") else "") or ""
-        if hasattr(meta, "date") and meta.date:
-            try:
-                published = date_parse(meta.date)
-            except Exception:
-                published = None
-        if hasattr(meta, "author") and meta.author:
-            authors = [meta.author]
-        if hasattr(meta, "sitename") and meta.sitename:
-            site = meta.sitename
-        else:
-            site = domain_of(url)
-        if hasattr(meta, "image") and meta.image:
-            top_image = meta.image
-        content_md = md
-    else:
-        # fallback: readability
-        r_title, r_text = extract_with_readability(html_str, url)
-        title = r_title or ""
-        content_text = r_text
-        content_md = r_text
-        site = domain_of(url)
+    content_html = art.article_html or art.html or resp.text
+    content_md = html_to_markdown(content_html, url, conv_cfg)
+    content_text = art.text or BeautifulSoup(content_html, "lxml").get_text("\n", strip=True)
+
+    title = art.title or ""
+    authors = art.authors or []
+    published = art.publish_date
+    top_image = art.top_image if getattr(art, "top_image", None) else None
+    site = domain_of(url)
 
     if not title:
-        # подстраховка заголовка из <title>
-        soup = BeautifulSoup(html_str, "lxml")
+        soup = BeautifulSoup(resp.text, "lxml")
         t = soup.title.string if soup.title and soup.title.string else ""
         title = (t or url).strip()
 
@@ -416,6 +382,8 @@ def main() -> int:
     with open(args.config, "r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
 
+    converter_cfg = cfg.get("markdown_converter", {})
+
     output_dir = Path(cfg["output_dir"]).expanduser()
     ensure_dir(output_dir)
 
@@ -473,7 +441,7 @@ def main() -> int:
                 continue
 
             try:
-                art = extract_article(session, url= it.link)
+                art = extract_article(session, url=it.link, conv_cfg=converter_cfg)
             except Exception as e:
                 logger.warning(f"Extract failed: {it.link} -> {e}")
                 continue

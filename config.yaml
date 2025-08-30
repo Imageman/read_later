@@ -8,6 +8,17 @@ download_images: true           # true = скачивать изображени
 max_articles_per_feed: 35        # ограничение на количество за прогон (страхуемся от флуда)
 user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) NewsGrabber/1.0"
 
+# Конвертер HTML → Markdown
+markdown_converter:
+  engine: html2text  # html2text | pypandoc | markitdown
+  html2text:
+    description: "Простая библиотека на Python"
+  pypandoc:
+    description: "Обёртка над pandoc, нужен установленный binary"
+    extra_args: []
+  markitdown:
+    description: "Проект Microsoft для точного перевода в Markdown"
+
 # Глобальные фильтры
 include_keywords: ["нейросети", "machine learning", "python", "deep learning", "наука", "программирование", "ИИ"]
 exclude_keywords: ["вакансия", "джун", "интервью", "маркетинг"]
