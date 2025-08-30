@@ -232,7 +232,17 @@ def extract_article(session: requests.Session, url: str) -> Article:
         content_md = md
     else:
         # fallback: readability
-        r_title, r_text = extract_with_readability(html_str, url)
+        try:
+            r_title, r_text = extract_with_readability(html_str, url)
+        except AttributeError:
+            import traceback
+
+            logger.error(
+                "Readability fallback failed:\n" + traceback.format_exc()
+            )
+            soup = BeautifulSoup(html_str, "lxml")
+            r_title = soup.title.string if soup.title else ""
+            r_text = soup.get_text("\n", strip=True)
         title = r_title or ""
         content_text = r_text
         content_md = r_text
