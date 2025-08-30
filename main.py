@@ -21,6 +21,7 @@
 from __future__ import annotations
 import argparse
 import hashlib
+import html
 import json
 from loguru import logger
 import os
@@ -174,7 +175,7 @@ def html_to_markdown(html_str: str, base_url: str, cfg: Dict) -> str:
         mk = MarkItDown()
         if base_url:
             html_str = f'<base href="{base_url}">{html_str}'
-        res = mk.convert(BytesIO(html_str.encode("utf-8")), "text/html")
+        res = mk.convert(BytesIO(html_str.encode("utf-8")), mimetype="text/html")
         if hasattr(res, "text_content"):
             return res.text_content
         if hasattr(res, "markdown"):
@@ -187,6 +188,16 @@ def html_to_markdown(html_str: str, base_url: str, cfg: Dict) -> str:
     h.baseurl = base_url
     return h.handle(html_str)
 
+def decode_html_entities(text: str) -> str:
+    """
+    Проверяет, есть ли в строке повторяющиеся HTML‑сущности
+    (например, &#1057; &#1090; ...) и при необходимости
+    декодирует их обратно в UTF‑8.
+    """
+    # Ищем как минимум две подряд сущности вида &#число;
+    if re.search(r'(?:&#\d+;){2,}', text):
+        return html.unescape(text)
+    return text
 
 def extract_article(session: requests.Session, url: str, conv_cfg: Dict) -> Article:
     resp = session.get(url, allow_redirects=True, timeout=30)
@@ -202,6 +213,7 @@ def extract_article(session: requests.Session, url: str, conv_cfg: Dict) -> Arti
     art.parse()
 
     content_html = art.article_html or art.html or resp.text
+    content_html = decode_html_entities(content_html)
     content_md = html_to_markdown(content_html, url, conv_cfg)
     content_text = art.text or BeautifulSoup(content_html, "lxml").get_text("\n", strip=True)
 
