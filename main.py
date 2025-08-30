@@ -166,26 +166,23 @@ def build_http_session(user_agent: str) -> requests.Session:
 
 def extract_with_trafilatura(html_str: str, base_url: str) -> Tuple[str, Dict]:
     # Настройка trafilatura для очищенного HTML
-    cfg = tf_use_config()
-    # cfg.set("DEFAULT", "include-formatting", "yes")
-    # cfg.set("DEFAULT", "favor_recall", "yes")
-    cfg.set("DEFAULT", "target_language", "ru")
     # Получаем HTML и метаданные
-    clean_html = trafilatura.extract(
-        html_str,
+    html2 = re.sub(r"\s{1,15}", " ", html_str, flags=re.UNICODE)
+    html2 = re.sub(r"&nbsp;", " ", html2, flags=re.IGNORECASE | re.UNICODE)
+    md = trafilatura.extract(
+        html2,
         url=base_url,
         target_language="ru",
         include_comments=False,
         include_tables=True,
-        output="xml",
-        config=cfg,
+        # output_format="xml",
         favor_recall=True,
         include_formatting=True,
         include_links=True,
         include_images=True,
     )
     meta = trafilatura.extract_metadata(html_str, default_url=base_url)
-    md = html_to_md(clean_html, heading_style="ATX") if clean_html else ""
+    # md = html_to_md(clean_html, heading_style="ATX") if clean_html else ""
     return md, meta or {}
 
 def extract_with_readability(html_str: str, base_url: str) -> Tuple[str, str]:
