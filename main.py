@@ -33,6 +33,7 @@ import traceback
 from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from io import BytesIO
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 from urllib.parse import urlparse, urljoin
@@ -171,10 +172,9 @@ def html_to_markdown(html_str: str, base_url: str, cfg: Dict) -> str:
         return pypandoc.convert_text(html_str, to="md", format="html", extra_args=extra)
     if engine == "markitdown":
         mk = MarkItDown()
-        try:
-            res = mk.convert(html_str, base_url)
-        except TypeError:
-            res = mk.convert(html_str)
+        if base_url:
+            html_str = f'<base href="{base_url}">{html_str}'
+        res = mk.convert(BytesIO(html_str.encode("utf-8")), "text/html")
         if hasattr(res, "text_content"):
             return res.text_content
         if hasattr(res, "markdown"):
