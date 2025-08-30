@@ -193,7 +193,12 @@ def extract_article(session: requests.Session, url: str, conv_cfg: Dict) -> Arti
     resp.raise_for_status()
 
     art = NPArticle(url)
-    art.set_html(resp.text)
+    # newspaper4k <=0.9 had `set_html`, newer versions expect `download(input_html=...)`
+    if hasattr(art, "set_html"):
+        art.set_html(resp.text)
+    else:
+        # fall back to the new API while avoiding a second network request
+        art.download(input_html=resp.text)
     art.parse()
 
     content_html = art.article_html or art.html or resp.text
