@@ -10,7 +10,7 @@ user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) NewsGrabber/1.0"
 
 # Конвертер HTML → Markdown
 markdown_converter:
-  engine: html2text  # html2text | pypandoc | markitdown
+  engine: markitdown  # html2text | pypandoc | markitdown
   html2text:
     description: "Простая библиотека на Python"
   pypandoc:
