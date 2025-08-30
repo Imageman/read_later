@@ -50,9 +50,13 @@ from trafilatura.settings import use_config as tf_use_config
 # readability fallback
 from readability import Document
 
+# -------------------- CONSTANTS --------------------
+FEED_DIR_NAME_LIMIT = 20
+DEFAULT_FEED_DIR_NAME = "feed"
+
 # -------------------- ЛОГИ --------------------
 def setup_logger(log_file: Path):
-    """Настраивает систему логирования с использованием Loguru."""
+    """Configure logging using Loguru."""
     logger.remove()
     log_format = (
         "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
@@ -62,11 +66,11 @@ def setup_logger(log_file: Path):
 
     try:
         # Логирование в консоль
-        logger.add(sys.stdout, colorize=True, format=log_format, level="debug")
-    except Exception as e:
+        logger.add(sys.stderr, colorize=True, format=log_format, level="debug")
+    except Exception as error:
         # Эта ошибка может возникнуть, если нет доступной консоли (например, при запуске с pythonw.exe)
         # Логируем это в файл для отладки, но не прерываем работу.
-        logger.debug(f"Could not add console logger: {e}")
+        logger.debug(f"Could not add console logger: {error}")
 
     # Логирование в файлы
     logger.add(log_file, rotation="10 MB", retention="7 days", encoding="utf-8", level="DEBUG", format=log_format)
@@ -103,6 +107,12 @@ def safe_filename(name: str, limit: int = 120) -> str:
     if len(s) > limit:
         s = s[:limit].rstrip()
     return s or "untitled"
+
+
+def safe_feed_dir(name: str, limit: int = FEED_DIR_NAME_LIMIT) -> str:
+    """Return sanitized feed name suitable for directory creation."""
+    sanitized = safe_filename(name, limit=limit).replace(" ", "_")
+    return sanitized or DEFAULT_FEED_DIR_NAME
 
 def domain_of(url: str) -> str:
     try:
@@ -313,10 +323,16 @@ def rewrite_and_download_images(a: Article, out_dir: Path, session: requests.Ses
             return m.group(0)
     return pattern.sub(repl, md)
 
-def save_markdown(a: Article, feed_name: str, out_root: Path, tags: List[str], download_images: bool, session: requests.Session) -> Path:
-    # Папка: /YYYY/MM/
-    dt = a.published or now_local()
-    out_dir = out_root / f"{dt.year:04d}" / f"{dt.month:02d}"
+def save_markdown(
+    a: Article,
+    feed_name: str,
+    out_root: Path,
+    tags: List[str],
+    download_images: bool,
+    session: requests.Session,
+) -> Path:
+    """Save article as Markdown file inside a feed-named directory."""
+    out_dir = out_root / safe_feed_dir(feed_name)
     ensure_dir(out_dir)
 
     fname = f"{safe_filename(a.title)}_{hash_id(a.url)}.md"
