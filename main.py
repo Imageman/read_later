@@ -164,8 +164,8 @@ def build_http_session(user_agent: str) -> requests.Session:
 def extract_with_trafilatura(html_str: str, base_url: str) -> Tuple[str, Dict]:
     # Настройка trafilatura для Markdown
     cfg = tf_use_config()
-    cfg.set("DEFAULT", "include-formatting", "yes")
-    cfg.set("DEFAULT", "favor_recall", "yes")
+    # cfg.set("DEFAULT", "include-formatting", "yes")
+    # cfg.set("DEFAULT", "favor_recall", "yes")
     cfg.set("DEFAULT", "target_language", "ru")
     # Получаем Markdown + метаданные
     md = trafilatura.extract(
@@ -176,6 +176,8 @@ def extract_with_trafilatura(html_str: str, base_url: str) -> Tuple[str, Dict]:
         include_tables=True,
         output="markdown",
         config=cfg,
+        favor_recall=True,
+        include_formatting=True,include_links=True,include_images=True,
     )
     meta = trafilatura.extract_metadata(html_str, default_url=base_url)
     return md or "", meta or {}
