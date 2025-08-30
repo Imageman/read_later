@@ -50,6 +50,9 @@ from trafilatura.settings import use_config as tf_use_config
 # readability fallback
 from readability import Document
 
+# HTML → Markdown converter
+from markdownify import markdownify as html_to_md
+
 # -------------------- CONSTANTS --------------------
 FEED_DIR_NAME_LIMIT = 20
 DEFAULT_FEED_DIR_NAME = "feed"
@@ -162,25 +165,28 @@ def build_http_session(user_agent: str) -> requests.Session:
     return s
 
 def extract_with_trafilatura(html_str: str, base_url: str) -> Tuple[str, Dict]:
-    # Настройка trafilatura для Markdown
+    # Настройка trafilatura для очищенного HTML
     cfg = tf_use_config()
     # cfg.set("DEFAULT", "include-formatting", "yes")
     # cfg.set("DEFAULT", "favor_recall", "yes")
     cfg.set("DEFAULT", "target_language", "ru")
-    # Получаем Markdown + метаданные
-    md = trafilatura.extract(
+    # Получаем HTML и метаданные
+    clean_html = trafilatura.extract(
         html_str,
         url=base_url,
         target_language="ru",
         include_comments=False,
         include_tables=True,
-        output="markdown",
+        output="xml",
         config=cfg,
         favor_recall=True,
-        include_formatting=True,include_links=True,include_images=True,
+        include_formatting=True,
+        include_links=True,
+        include_images=True,
     )
     meta = trafilatura.extract_metadata(html_str, default_url=base_url)
-    return md or "", meta or {}
+    md = html_to_md(clean_html, heading_style="ATX") if clean_html else ""
+    return md, meta or {}
 
 def extract_with_readability(html_str: str, base_url: str) -> Tuple[str, str]:
     doc = Document(html_str)
