@@ -25,7 +25,7 @@ markdown_converter:
     description: "Проект Microsoft для точного перевода в Markdown"
 
 # Глобальные фильтры
-include_keywords: ["нейросети", "machine learning", "python", "deep learning", "наука", "программирование", "ИИ"]
+include_keywords: ["нейросети", "machine learning", "python", "deep learning", "наука", "программирование", "XGBoost", "CatBoost", "LightGBM", "LSTM"]
 exclude_keywords: ["вакансия", "джун", "интервью", "маркетинг"]
 allow_domains: ["habr.com", "arxiv.org", "news.ycombinator.com", "towardsdatascience.com"]
 deny_domains: []
@@ -34,7 +34,7 @@ deny_domains: []
 feeds:
   - name: "Habr / Все публикации"
     url: "https://habr.com/ru/rss/all/all/?fl=ru"
-    include_keywords: ["нейросети", "машинное обучение", "python", "cuda", "torch"]
+    include_keywords: ["машинное обучение", "cuda", "torch"]
     exclude_keywords: ["зарплата", "подкаст"]
     allow_domains: ["habr.com"]
 
