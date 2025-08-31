@@ -65,10 +65,21 @@ def grid_search(n_values, epsilon_values):
 
 
 def build_demo():
-    with gr.Blocks() as demo:
+    with gr.Blocks(css="""
+        /* ТОЛЬКО наша таблица по elem_id */
+        #ratings_table table th:nth-child(1),
+        #ratings_table table td:nth-child(1) {
+            min-width: 140px;        /* id */
+        }
+        #ratings_table table th:nth-child(2),
+        #ratings_table table td:nth-child(2) {
+            min-width: 50px;         /* rating */
+            text-align: right;       /* опционально */
+        }
+        """) as demo:
         gr.Markdown("# Ratings storage")
-        table = gr.DataFrame(headers=["id", "rating", "text"], interactive=False, wrap=True, height=400)
-        id_dd = gr.Dropdown(label="Record ID")
+        table = gr.DataFrame(headers=["id", "rating", "text"], interactive=False, wrap=True, max_height=500, elem_id="ratings_table")
+        id_dd = gr.Dropdown(label="Record ID",  min_width=130)
 
         refresh_btn = gr.Button("Refresh")
         refresh_btn.click(
