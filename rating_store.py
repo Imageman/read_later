@@ -49,7 +49,7 @@ def init_db(force_reset: bool = False) -> None:
 
 
 def add_record(text: str, rating: float) -> str:
-    vid = str(uuid.uuid4())
+    vid = str(uuid.uuid7())
     vector = get_embedding(text)
     point = models.PointStruct(id=vid, vector=vector, payload={"text": text, "rating": float(rating)})
     qdrant.upsert(collection_name=COLLECTION_NAME, points=[point])
