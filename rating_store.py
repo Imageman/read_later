@@ -151,7 +151,7 @@ def predict_rating(text: str, n: int, epsilon: float, model_name: Optional[str] 
     weights = []
     ratings = []
     for r in results:
-        dist = r.score
+        dist = r.score  # cosine distance: smaller value means higher similarity
         weight = 1.0 / (dist + epsilon)
         weights.append(weight)
         ratings.append(r.payload.get("rating", 0.0))
@@ -195,7 +195,7 @@ def grid_search_n_epsilon(
                 weights = []
                 ratings = []
                 for nb in neighbors:
-                    dist = nb.score
+                    dist = nb.score  # cosine distance: smaller value means higher similarity
                     weight = 1.0 / (dist + eps)
                     weights.append(weight)
                     ratings.append(nb.payload.get("rating", 0.0))

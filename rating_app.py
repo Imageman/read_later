@@ -10,7 +10,9 @@ import rating_store
 
 @logger.catch
 def refresh_table():
-    return pd.DataFrame(rating_store.get_all_records())
+    df = pd.DataFrame(rating_store.get_all_records())
+    # show rating before text to keep numbers visible even for long texts
+    return df[["id", "rating", "text"]]
 
 
 @logger.catch
@@ -65,7 +67,7 @@ def grid_search(n_values, epsilon_values):
 def build_demo():
     with gr.Blocks() as demo:
         gr.Markdown("# Ratings storage")
-        table = gr.DataFrame(headers=["id", "text", "rating"], interactive=False)
+        table = gr.DataFrame(headers=["id", "rating", "text"], interactive=False, wrap=True, height=400)
         id_dd = gr.Dropdown(label="Record ID")
 
         refresh_btn = gr.Button("Refresh")
@@ -81,12 +83,25 @@ def build_demo():
         add_btn.click(add, inputs=[text_in, rating_in], outputs=[table, id_dd])
 
         with gr.Row():
-            new_text = gr.Textbox(label="New Text", lines=2)
-            new_rating = gr.Slider(minimum=0, maximum=10, step=0.1, label="New Rating")
+            new_text = gr.Textbox(
+                label="Updated Text",
+                lines=2,
+                placeholder="Leave blank to keep current",
+            )
+            new_rating = gr.Slider(minimum=0, maximum=10, step=0.1, label="Updated Rating")
             upd_btn = gr.Button("Update")
             del_btn = gr.Button("Delete")
         upd_btn.click(update, inputs=[id_dd, new_text, new_rating], outputs=[table, id_dd])
         del_btn.click(delete, inputs=id_dd, outputs=[table, id_dd])
+
+        @logger.catch
+        def load_record(record_id):
+            rec = rating_store.get_record(record_id)
+            if not rec:
+                return "", 0.0
+            return rec.get("text", ""), rec.get("rating", 0.0)
+
+        id_dd.change(load_record, inputs=id_dd, outputs=[new_text, new_rating])
 
         import_file = gr.File(label="Import JSON")
         import_file.upload(do_import, inputs=import_file, outputs=[table, id_dd])
