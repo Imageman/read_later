@@ -3,44 +3,52 @@ from pathlib import Path
 
 import gradio as gr
 import pandas as pd
+from loguru import logger
 
 import rating_store
 
 
+@logger.catch
 def refresh_table():
     return pd.DataFrame(rating_store.get_all_records())
 
 
+@logger.catch
 def add(text, rating):
     rating_store.add_record(text, float(rating))
-    return refresh_table(), gr.Dropdown.update(choices=rating_store.get_all_ids())
+    return refresh_table(), gr.update(choices=rating_store.get_all_ids())
 
 
+@logger.catch
 def update(record_id, text, rating):
     rating_store.update_record(record_id, text or None, float(rating) if rating is not None else None)
-    return refresh_table(), gr.Dropdown.update(choices=rating_store.get_all_ids())
+    return refresh_table(), gr.update(choices=rating_store.get_all_ids())
 
 
+@logger.catch
 def delete(record_id):
     rating_store.delete_record(record_id)
-    return refresh_table(), gr.Dropdown.update(choices=rating_store.get_all_ids())
+    return refresh_table(), gr.update(choices=rating_store.get_all_ids())
 
 
+@logger.catch
 def do_import(file):
     if file is not None:
         rating_store.import_json(file.name)
-    return refresh_table(), gr.Dropdown.update(choices=rating_store.get_all_ids())
+    return refresh_table(), gr.update(choices=rating_store.get_all_ids())
 
 
+@logger.catch
 def do_export():
     path = rating_store.DATA_DIR / "export.json"
     rating_store.export_json(path)
-    return path
+    return str(path)
 
 
+@logger.catch
 def do_recalculate():
     rating_store.recalculate_embeddings()
-    return refresh_table(), gr.Dropdown.update(choices=rating_store.get_all_ids())
+    return refresh_table(), gr.update(choices=rating_store.get_all_ids())
 
 
 def predict(text, n, epsilon):
@@ -62,7 +70,7 @@ def build_demo():
 
         refresh_btn = gr.Button("Refresh")
         refresh_btn.click(
-            lambda: (refresh_table(), gr.Dropdown.update(choices=rating_store.get_all_ids())),
+            lambda: (refresh_table(), gr.update(choices=rating_store.get_all_ids())),
             outputs=[table, id_dd],
         )
 
@@ -105,7 +113,7 @@ def build_demo():
         grid_btn.click(grid_search, inputs=[n_vals, eps_vals], outputs=grid_out)
 
         demo.load(
-            lambda: (refresh_table(), gr.Dropdown.update(choices=rating_store.get_all_ids())),
+            lambda: (refresh_table(), gr.update(choices=rating_store.get_all_ids())),
             outputs=[table, id_dd],
         )
     return demo
