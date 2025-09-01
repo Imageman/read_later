@@ -9,6 +9,7 @@ import numpy as np
 import yaml
 from openai import OpenAI
 from qdrant_client import QdrantClient, models
+from loguru import logger
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
 COLLECTION_NAME = "ratings"
@@ -49,7 +50,7 @@ def init_db(force_reset: bool = False) -> None:
 
 
 def add_record(text: str, rating: float) -> str:
-    vid = str(uuid.uuid7())
+    vid = str(uuid.uuid1())
     vector = get_embedding(text)
     point = models.PointStruct(id=vid, vector=vector, payload={"text": text, "rating": float(rating)})
     qdrant.upsert(collection_name=COLLECTION_NAME, points=[point])
@@ -150,11 +151,13 @@ def predict_rating(text: str, n: int, epsilon: float, model_name: Optional[str] 
         return 0.0
     weights = []
     ratings = []
+    logger.debug(f'{text[:200]}')
     for r in results:
         dist = r.score  # cosine distance: smaller value means higher similarity
         weight = 1.0 / (dist + epsilon)
         weights.append(weight)
         ratings.append(r.payload.get("rating", 0.0))
+    logger.debug(f'weights: {weights}; ratings: {ratings}')
     weights_arr = np.array(weights)
     ratings_arr = np.array(ratings)
     return float(np.sum(weights_arr * ratings_arr) / np.sum(weights_arr))

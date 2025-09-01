@@ -58,9 +58,11 @@ def predict(text, n, epsilon):
 
 
 def grid_search(n_values, epsilon_values):
+    logger.info(f"n_values: {n_values}; epsilon_values: {epsilon_values}")
     n_vals = [int(v) for v in n_values.split(",") if v.strip()]
     eps_vals = [float(v) for v in epsilon_values.split(",") if v.strip()]
     n, eps, rmse = rating_store.grid_search_n_epsilon(n_vals, eps_vals)
+    logger.info(f"n: {n}, eps: {eps}, rmse: {rmse}")
     return f"best_n={n}, best_epsilon={eps}, rmse={rmse:.4f}"
 
 
