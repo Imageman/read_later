@@ -55,6 +55,8 @@ import pypandoc
 from markitdown import MarkItDown
 from markitdown._exceptions import UnsupportedFormatException
 
+import rating_store
+
 # -------------------- CONSTANTS --------------------
 FEED_DIR_NAME_LIMIT = 20
 DEFAULT_FEED_DIR_NAME = "feed"
@@ -324,6 +326,7 @@ def rewrite_and_download_images(a: Article, out_dir: Path, session: requests.Ses
 
 def save_markdown(
     a: Article,
+    rating: float,
     feed_name: str,
     out_root: Path,
     tags: List[str],
@@ -334,7 +337,8 @@ def save_markdown(
     out_dir = out_root / safe_feed_dir(feed_name)
     ensure_dir(out_dir)
 
-    fname = f"{safe_filename(a.title)}_{hash_id(a.url)}.md"
+    rating_str = f"{rating:.1f}"
+    fname = f"{rating_str} {safe_filename(a.title)}_{hash_id(a.url)}.md"
     path = out_dir / fname
 
     body_md = a.content_markdown
@@ -419,6 +423,9 @@ def main() -> int:
     min_chars = int(cfg.get("min_chars", 600))
     download_images = bool(cfg.get("download_images", False))
     max_articles_per_feed = int(cfg.get("max_articles_per_feed", 15))
+    rating_threshold = float(cfg.get("rating_threshold", 5.0))
+    rating_n = int(cfg.get("rating_n", 5))
+    rating_epsilon = float(cfg.get("rating_epsilon", 0.001))
     user_agent = cfg.get("user_agent", "NewsGrabber/1.0")
 
     g_inc = cfg.get("include_keywords", []) or []
@@ -430,6 +437,7 @@ def main() -> int:
     if not feeds:
         logger.error("No feeds configured.")
         return 2
+    rating_store.init_db()
 
     seen = SeenDB(output_dir / "seen.db")
     session = build_http_session(user_agent)
@@ -462,20 +470,16 @@ def main() -> int:
             if not is_domain_allowed(it.link, f_allow or g_allow, f_deny or g_deny):
                 continue
 
-            # Грубая фильтрация по заголовку/анонсу заранее
-            pre_text = f"{it.title}\n{it.summary}"
-            if not match_keywords(pre_text, f_inc or g_inc, f_exc or g_exc):
-                continue
-
             try:
                 art = extract_article(session, url=it.link, conv_cfg=converter_cfg)
             except Exception as e:
                 logger.warning(f"Extract failed: {it.link} -> {e}\n{traceback.format_exc()}")
                 continue
 
-            # Повторная фильтрация по полному тексту
             full_text = f"{it.title}\n{art.content_text}"
-            if not match_keywords(full_text, f_inc or g_inc, f_exc or g_exc):
+            rating = rating_store.predict_rating(full_text, rating_n, rating_epsilon)
+            logger.debug(f"Rating {rating:.1f}: {it.title} | {it.link}")
+            if rating < rating_threshold:
                 continue
 
             if len(art.content_text) < min_chars:
@@ -483,6 +487,7 @@ def main() -> int:
 
             save_path = save_markdown(
                 art,
+                rating,
                 feed_name=name,
                 out_root=output_dir,
                 tags=tags,

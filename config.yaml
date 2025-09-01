@@ -11,6 +11,7 @@ retention_days: 60               # авто-удаление заметок ст
 min_chars: 600                   # минимальная длина статьи (отбор "шумных" коротышей)
 download_images: true           # true = скачивать изображения локально и переписывать ссылки
 max_articles_per_feed: 35        # ограничение на количество за прогон (страхуемся от флуда)
+rating_threshold: 5.0            # чем выше значение, тем меньше статей будет
 user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) NewsGrabber/1.0"
 
 # Конвертер HTML → Markdown
